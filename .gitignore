@@ -1,0 +1,14 @@
+*.pyc
+__pycache__
+.DS_Store
+build.py
+*.sqlite3
+*.db
+node_modules
+dist
+*.csv
+/data/*
+/media/*
+/scripts/*
+secrets.env
+.env
