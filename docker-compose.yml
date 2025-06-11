@@ -1,0 +1,63 @@
+version: "2.4"
+
+x-django-base: &django-base
+  image: samirelanduk/metalbind-django
+  restart: always
+  env_file:
+    - secrets.env
+  environment: &django-environment
+    DB_URL: "postgresql://metalbind:metalbind@postgres:5432/metalbind"
+    DEBUG: "yes"
+  build:
+    context: django
+    dockerfile: Dockerfile
+  volumes:
+    - ./django:/app
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:14 
+    hostname: postgres
+    container_name: metalbind_postgres
+    environment:
+      POSTGRES_USER: "metalbind"
+      POSTGRES_PASSWORD: "metalbind"
+      POSTGRES_DB: "metalbind"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metalbind"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres:/var/lib/postgresql/data
+  
+  upgrade:
+    <<: *django-base
+    hostname: upgrade
+    container_name: metalbind_upgrade
+    command: python manage.py migrate
+    deploy:
+      restart_policy:
+        condition: on-failure
+  
+  api:
+    <<: *django-base
+    hostname: api
+    container_name: metalbind_api
+    environment:
+      <<: *django-environment
+      CORS_ALLOWED_ORIGINS: "http://localhost:${REACT_PORT:-9000},http://localhost:${DEV_PORT:-3000}"
+      MEDIA_URL: "http://localhost:${FILES_PORT:-9002}/"
+    ports:
+      - "${API_PORT:-9001}:8000"
+    command: ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--reload", "--log-level", "debug"]
+  
+
+  
+volumes:
+  postgres:
+  media:
